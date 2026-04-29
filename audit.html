@@ -135,15 +135,17 @@
                                 </div>
                             </div>
                             
-                            <div style="position: relative; flex: 1; width: 100%; background: #525659;">
-                                <div id="viewerContainer" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; overflow: auto; display: none;">
+                            <div style="position: relative; flex: 1; width: 100%; background: #525659; overflow: hidden;">
+                                
+                                <div id="viewerContainer" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; overflow: auto;">
                                     <div id="viewer" class="pdfViewer"></div>
                                 </div>
                                 
-                                <div id="pdfPlaceholder" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display:flex; flex-direction:column; justify-content:center; align-items:center; color:#999; padding:40px; text-align:center; background:#fff;">
+                                <div id="pdfPlaceholder" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 10; display:flex; flex-direction:column; justify-content:center; align-items:center; color:#999; padding:40px; text-align:center; background:#fff;">
                                     <i data-lucide="file-search" style="width: 48px; height: 48px; margin-bottom:15px; opacity: 0.5;"></i>
                                     <p style="font-size: 14px; max-width: 400px;">Klik pada <b>Part Number</b> di tabel atas. Buka <b>F12 (Console)</b> untuk melihat proses scanning secara live.</p>
                                 </div>
+
                             </div>
                         </div>
                     </div>
@@ -191,15 +193,15 @@
         }
 
         async function loadAndSearchPdf(rawUrl, searchTerm) {
+            // TARIK SELIMUT PUTIH KE ATAS
             document.getElementById('pdfPlaceholder').style.display = 'none';
-            document.getElementById('viewerContainer').style.display = 'block';
             document.getElementById('pdfStatusBadge').innerText = `Melacak PN: ${searchTerm}...`;
             document.getElementById('pdfStatusBadge').style.background = "#fcf3cf";
             document.getElementById('pdfStatusBadge').style.color = "#d4ac0d";
             document.getElementById('pdfWorkspace').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
             try {
-                // Inisialisasi sekarang aman di dalam try-catch
+                // Inisialisasi sekarang sangat aman
                 initPdfViewer();
 
                 // 1. Tarik PDF (Murni Github)
@@ -361,6 +363,21 @@
                 });
             }
             lucide.createIcons();
+            
+            // PRELOAD SILENT TANPA BUKA SELIMUT PUTIH
+            if (auditData.length > 0 && auditData[0].Link_Manual_Book) {
+                let initialUrl = auditData[0].Link_Manual_Book;
+                if (!currentPdfDoc) {
+                    initPdfViewer();
+                    pdfjsLib.getDocument(initialUrl).promise.then(doc => {
+                        currentPdfDoc = doc;
+                        currentPdfUrl = initialUrl;
+                        pdfViewer.setDocument(doc);
+                        pdfLinkService.setDocument(doc, null);
+                        console.log("[AI System] PDF Preload berhasil, siap digunakan.");
+                    }).catch(e => console.log("Preload failed", e));
+                }
+            }
         }
 
         function downloadPDF() {
