@@ -50,7 +50,6 @@
         .pdf-viewer-panel { width: 100%; background: #fff; border-radius: 12px; border: 1px solid var(--border-color); display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.05); height: 900px; }
         .pdf-header { padding: 15px 20px; background: #fbf9fc; border-bottom: 1px solid var(--border-color); font-family: 'Poppins', sans-serif; font-weight: 600; color: var(--primary); display: flex; justify-content: space-between; align-items: center; }
         
-        #viewerContainer { flex: 1; width: 100%; background: #525659; overflow: auto; position: relative; display: none; }
         .row-active { background-color: #f0ebf2 !important; border-left: 4px solid var(--primary); }
         .clickable-row { cursor: pointer; transition: background 0.2s; }
         .clickable-row:hover { background-color: #fbf9fc; }
@@ -63,7 +62,7 @@
             <div class="card-box">
                 <div class="header">
                     <h2><i data-lucide="shield-check"></i> SPB Audit</h2>
-                    <p style="color: #666; font-size: 12px;">Engine Audit System (Local Host Mode)</p>
+                    <p style="color: #666; font-size: 12px;">Engine Audit System (Github Live)</p>
                 </div>
                 <form id="auditForm">
                     <label>1. KATEGORI MESIN (Sistem)</label>
@@ -136,13 +135,15 @@
                                 </div>
                             </div>
                             
-                            <div id="viewerContainer">
-                                <div id="viewer" class="pdfViewer"></div>
-                            </div>
-                            
-                            <div id="pdfPlaceholder" style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; color:#999; padding:40px; text-align:center;">
-                                <i data-lucide="file-search" style="width: 48px; height: 48px; margin-bottom:15px; opacity: 0.5;"></i>
-                                <p style="font-size: 14px; max-width: 400px;">Klik pada <b>Part Number</b> di tabel atas. Sistem akan melacak dan merender halaman terkait.</p>
+                            <div style="position: relative; flex: 1; width: 100%; background: #525659;">
+                                <div id="viewerContainer" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; overflow: auto; display: none;">
+                                    <div id="viewer" class="pdfViewer"></div>
+                                </div>
+                                
+                                <div id="pdfPlaceholder" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display:flex; flex-direction:column; justify-content:center; align-items:center; color:#999; padding:40px; text-align:center; background:#fff;">
+                                    <i data-lucide="file-search" style="width: 48px; height: 48px; margin-bottom:15px; opacity: 0.5;"></i>
+                                    <p style="font-size: 14px; max-width: 400px;">Klik pada <b>Part Number</b> di tabel atas. Buka <b>F12 (Console)</b> untuk melihat proses scanning secara live.</p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -162,7 +163,7 @@
         let stableCount = 0;      
 
         // =====================================
-        // ENGINE PDF.JS (MURNI TANPA PROXY)
+        // ENGINE PDF.JS (FIXED CSS & LIVE TRACKER)
         // =====================================
         const pdfjsLib = window['pdfjs-dist/build/pdf'];
         const pdfjsViewer = window['pdfjs-dist/web/pdf_viewer'];
@@ -197,28 +198,39 @@
             document.getElementById('pdfStatusBadge').style.color = "#d4ac0d";
             document.getElementById('pdfWorkspace').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-            initPdfViewer();
-
             try {
-                // FETCH MURNI DARI GITHUB (Karena web ini akan dibuka dari Github)
+                // Inisialisasi sekarang aman di dalam try-catch
+                initPdfViewer();
+
+                // 1. Tarik PDF (Murni Github)
                 if (rawUrl !== currentPdfUrl || !currentPdfDoc) {
                     document.getElementById('pdfLoadingText').style.display = 'inline';
+                    console.log("[AI System] Mulai menyedot PDF dari Github...");
+                    
                     const loadingTask = pdfjsLib.getDocument(rawUrl);
                     currentPdfDoc = await loadingTask.promise;
                     currentPdfUrl = rawUrl;
                     
                     pdfViewer.setDocument(currentPdfDoc);
                     pdfLinkService.setDocument(currentPdfDoc, null);
+                    console.log("[AI System] PDF berhasil dimuat ke memori.");
                 }
                 document.getElementById('pdfLoadingText').style.display = 'none';
 
                 let targetPageNum = 1;
                 let isFound = false;
 
+                // 2. LIVE SCANNER LINTAS HALAMAN
                 if (searchTerm && searchTerm !== "UNKNOWN" && searchTerm !== "-") {
                     let cleanSearch = searchTerm.replace(/\s+/g, ''); 
+                    console.log(`[AI Scanner] Target pencarian dikunci: "${cleanSearch}"`);
                     
                     for (let i = 1; i <= currentPdfDoc.numPages; i++) {
+                        // RADAR CONSOLE F12
+                        if (i % 5 === 0 || i === 1) {
+                            console.log(`[AI Scanner] Membedah teks Hal. ${i} dari ${currentPdfDoc.numPages}...`);
+                        }
+                        
                         let page = await currentPdfDoc.getPage(i);
                         let textContent = await page.getTextContent();
                         let pageString = textContent.items.map(item => item.str).join('').replace(/\s+/g, '');
@@ -226,28 +238,31 @@
                         if (pageString.includes(cleanSearch)) {
                             targetPageNum = i;
                             isFound = true;
+                            console.log(`✅ [BINGO!] Part Number ditemukan di Halaman ${i}. Melakukan lompatan...`);
                             break; 
                         }
                     }
                 }
 
+                // 3. PAKSA MELOMPAT KE HALAMAN
                 if(isFound) {
                     setTimeout(() => {
                         pdfViewer.currentPageNumber = targetPageNum;
                         document.getElementById('pdfStatusBadge').innerText = `Ditemukan di Hal: ${targetPageNum}`;
                         document.getElementById('pdfStatusBadge').style.background = "#e9f7ef";
                         document.getElementById('pdfStatusBadge').style.color = "#1e8449";
-                    }, 500); 
+                    }, 300); 
                 } else {
+                    console.log(`❌ [GAGAL] Part Number tidak ada di dalam dokumen ini.`);
                     document.getElementById('pdfStatusBadge').innerText = "PN Tidak Ditemukan";
                     document.getElementById('pdfStatusBadge').style.background = "#fadbd8";
                     document.getElementById('pdfStatusBadge').style.color = "#cb4335";
                 }
 
             } catch (error) {
-                console.error("GAGAL LOAD PDF:", error);
+                console.error("🔥 GAGAL SISTEM FATAL:", error);
                 document.getElementById('pdfLoadingText').style.display = 'none';
-                document.getElementById('pdfStatusBadge').innerText = "Koneksi PDF Gagal";
+                document.getElementById('pdfStatusBadge').innerText = "Sistem Gagal / Crash";
                 document.getElementById('pdfStatusBadge').style.background = "#fadbd8";
                 document.getElementById('pdfStatusBadge').style.color = "#cb4335";
             }
